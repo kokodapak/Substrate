@@ -14,8 +14,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "We use the microphone to practice speaking.",
+        "NSMicrophoneUsageDescription": "We use the microphone for speaking practice.",
         "NSSpeechRecognitionUsageDescription": "We use speech recognition for voice input.",
+        "UIBackgroundModes": ["audio"],
         "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.kokodapak.florai"
