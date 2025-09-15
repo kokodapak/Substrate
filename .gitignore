@@ -43,6 +43,8 @@ yarn-error.*
 # Temporary files
 uploads/
 *.log
+*.pid
+server/data/
 
 # IDE
 .vscode/
