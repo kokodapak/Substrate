@@ -389,6 +389,29 @@ export async function runScan(): Promise<ScanResult> {
       }),
     }).run();
 
+    // 10. Upsert state_snapshot
+    const criticalFindings = insertedFindings.filter((f) => f.severity === 'critical').length;
+    const totalFindings = insertedFindings.length;
+    const scanAt = new Date().toISOString();
+    sqlite.prepare(`
+      INSERT INTO state_snapshots (id, snapshot_data, last_scan_at, service_count, finding_count, critical_count, updated_at)
+      VALUES ('00000000-0000-0000-0000-000000000001', ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        snapshot_data = excluded.snapshot_data,
+        last_scan_at = excluded.last_scan_at,
+        service_count = excluded.service_count,
+        finding_count = excluded.finding_count,
+        critical_count = excluded.critical_count,
+        updated_at = excluded.updated_at
+    `).run(
+      JSON.stringify({ snapshot_version: version }),
+      scanAt,
+      allowedServices.length,
+      totalFindings,
+      criticalFindings,
+      scanAt,
+    );
+
     return { version, findingsProduced, tasksPromoted };
   });
 

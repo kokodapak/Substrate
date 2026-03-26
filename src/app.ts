@@ -6,6 +6,7 @@ import accessRouter from './routes/api/access';
 import graphRouter from './routes/api/graph';
 import rulesRouter from './routes/api/rules';
 import findingsRouter from './routes/api/findings';
+import agentRouter from './routes/agent/tasks';
 
 export const app = express();
 
@@ -22,3 +23,4 @@ app.use('/api/access', accessRouter);
 app.use('/api/graph', graphRouter);
 app.use('/api/rules', rulesRouter);
 app.use('/api/findings', findingsRouter);
+app.use('/agent', agentRouter);
