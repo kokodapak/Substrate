@@ -329,17 +329,24 @@ cd Substrate
 cp .env.example .env
 ```
 
-Edit `.env`:
+Generate keys and edit `.env`:
+
+```bash
+# Generate two secure random keys — one for admin access, one for agents
+openssl rand -hex 32  # run twice, use the two outputs below
+```
 
 ```env
-SUBSTRATE_ADMIN_KEY=your-secure-admin-key-here
-SUBSTRATE_AGENT_KEY=your-secure-agent-key-here
+SUBSTRATE_ADMIN_KEY=<first key from above>
+SUBSTRATE_AGENT_KEY=<second key from above>
 DATABASE_URL=file:./data/substrate.db
 NODE_ENV=production
 PORT=3000
 DOCKER_SOCKET_PATH=/var/run/docker.sock
 # SENTRY_DSN=https://... (optional)
 ```
+
+Keep `SUBSTRATE_ADMIN_KEY` secret — it grants full read/write access to every endpoint. Share `SUBSTRATE_AGENT_KEY` with agents that only need to claim and complete tasks.
 
 ```bash
 docker-compose up -d
