@@ -2,10 +2,47 @@ import '../config'; // Ensure env is validated first
 import path from 'path';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { db, sqlite } from './index';
+import { loadPluginRules, getPluginsDir } from '../services/plugin-loader';
 
 export function runMigrations(): void {
   migrate(db, { migrationsFolder: path.join(__dirname, '..', '..', 'migrations') });
   seedBuiltInRules();
+}
+
+export function loadAndRegisterPluginRules(): void {
+  const pluginsDir = getPluginsDir();
+  const descriptors = loadPluginRules(pluginsDir);
+
+  if (descriptors.length === 0) return;
+
+  const insert = sqlite.prepare(`
+    INSERT OR IGNORE INTO rules (id, name, description, severity, condition_source, recommended_action, built_in)
+    VALUES (@id, @name, @description, @severity, @conditionSource, @recommendedAction, 0)
+  `);
+
+  const insertMany = sqlite.transaction(
+    (rows: Array<{ id: string; name: string; description: string; severity: string; conditionSource: string; recommendedAction: string }>) => {
+      for (const row of rows) {
+        insert.run(row);
+      }
+    }
+  );
+
+  const loadedRules = descriptors
+    .filter((d) => d.loaded)
+    .map((d) => ({
+      id: d.id,
+      name: d.name,
+      description: d.description,
+      severity: d.severity,
+      conditionSource: d.condition_source,
+      recommendedAction: d.recommended_action,
+    }));
+
+  if (loadedRules.length > 0) {
+    insertMany(loadedRules);
+    console.log(`[plugin-loader] Registered ${loadedRules.length} plugin rule(s)`);
+  }
 }
 
 function seedBuiltInRules(): void {

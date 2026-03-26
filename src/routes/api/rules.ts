@@ -4,10 +4,22 @@ import { eq } from 'drizzle-orm';
 import { requireAdmin } from '../../middleware/auth';
 import { db } from '../../db/index';
 import { rules } from '../../db/schema';
+import { pluginDescriptors } from '../../services/plugin-loader';
 
 const router = Router();
 
 const VALID_SEVERITIES = new Set(['critical', 'high', 'medium', 'low']);
+
+// GET /api/rules/plugins — returns in-memory plugin descriptor list
+router.get('/plugins', requireAdmin, (_req, res) => {
+  const plugins = pluginDescriptors.map((d) => ({
+    id: d.id,
+    name: d.name,
+    source_path: d.source_path,
+    loaded: d.loaded,
+  }));
+  return res.json({ plugins });
+});
 
 // GET /api/rules — returns all rules (without condition_source)
 router.get('/', requireAdmin, (_req, res) => {

@@ -11,9 +11,11 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "build:client": "cd client && npm install && npm run build",
-    "build:all": "npm run build && npm run build:client"
+    "build:all": "npm run build && npm run build:client",
+    "mcp": "node dist/mcp/index.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.28.0",
     "@sentry/node": "^7.108.0",
     "better-sqlite3": "^9.4.3",
     "dockerode": "^4.0.2",
