@@ -1,0 +1,33 @@
+{
+  "name": "substrate",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "better-sqlite3": "^9.4.3",
+    "drizzle-orm": "^0.30.4",
+    "dockerode": "^4.0.2",
+    "@sentry/node": "^7.108.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.3",
+    "@types/express": "^4.17.21",
+    "@types/better-sqlite3": "^7.6.9",
+    "@types/node": "^20.12.2",
+    "@types/dockerode": "^3.3.24",
+    "drizzle-kit": "^0.20.14",
+    "tsx": "^4.7.2",
+    "vitest": "^1.4.0",
+    "@vitest/coverage-v8": "^1.4.0"
+  }
+}

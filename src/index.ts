@@ -1,0 +1,13 @@
+import './config'; // Validates env vars — must be first import
+import { config } from './config';
+import { app } from './app';
+
+if (config.sentryDsn) {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const Sentry = require('@sentry/node');
+  Sentry.init({ dsn: config.sentryDsn });
+}
+
+app.listen(config.port, () => {
+  console.log(`Substrate server listening on port ${config.port} (${config.nodeEnv})`);
+});

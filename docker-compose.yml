@@ -1,0 +1,22 @@
+version: '3.8'
+services:
+  substrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${PORT:-4000}:${PORT:-4000}"
+    volumes:
+      - ./data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - .env
+    environment:
+      - SUBSTRATE_ADMIN_KEY=${SUBSTRATE_ADMIN_KEY}
+      - SUBSTRATE_AGENT_KEY=${SUBSTRATE_AGENT_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=${PORT:-4000}
+      - DOCKER_SOCKET_PATH=${DOCKER_SOCKET_PATH:-/var/run/docker.sock}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+    restart: unless-stopped
