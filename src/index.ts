@@ -8,6 +8,4 @@ if (config.sentryDsn) {
   Sentry.init({ dsn: config.sentryDsn });
 }
 
-app.listen(config.port, () => {
-  console.log(`Substrate server listening on port ${config.port} (${config.nodeEnv})`);
-});
+app.listen(config.port);

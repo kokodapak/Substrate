@@ -1,162 +1,11 @@
 import '../config'; // Ensure env is validated first
 import path from 'path';
-import fs from 'fs';
-import { sqlite, db } from './index';
-import { rules } from './schema';
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { db, sqlite } from './index';
 
-// Run raw SQL migrations from the migrations/ directory
-function runMigrations(): void {
-  const migrationsDir = path.join(__dirname, '..', '..', 'migrations');
-
-  if (!fs.existsSync(migrationsDir)) {
-    console.log('No migrations directory found, skipping migrations.');
-    return;
-  }
-
-  // Create migrations tracking table
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS __migrations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filename TEXT NOT NULL UNIQUE,
-      applied_at TEXT DEFAULT (datetime('now'))
-    )
-  `);
-
-  const applied = new Set<string>(
-    (sqlite.prepare('SELECT filename FROM __migrations').all() as { filename: string }[]).map(
-      (r) => r.filename
-    )
-  );
-
-  const files = fs
-    .readdirSync(migrationsDir)
-    .filter((f) => f.endsWith('.sql'))
-    .sort();
-
-  for (const file of files) {
-    if (applied.has(file)) {
-      continue;
-    }
-    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-    sqlite.exec(sql);
-    sqlite.prepare('INSERT INTO __migrations (filename) VALUES (?)').run(file);
-    console.log(`Applied migration: ${file}`);
-  }
-}
-
-// Create all tables directly (no migration files needed for initial schema)
-function createTables(): void {
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS graph_snapshots (
-      id TEXT PRIMARY KEY,
-      version INTEGER NOT NULL,
-      graph_data TEXT NOT NULL,
-      domains TEXT DEFAULT '["services","files_configs"]',
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS services (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      type TEXT CHECK(type IN ('container','process','app')),
-      status TEXT CHECK(status IN ('running','stopped','exited','unknown')),
-      image TEXT,
-      ports TEXT DEFAULT '[]',
-      env_key_names TEXT DEFAULT '[]',
-      snapshot_id TEXT REFERENCES graph_snapshots(id),
-      discovered_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS files_configs (
-      id TEXT PRIMARY KEY,
-      path TEXT NOT NULL,
-      type TEXT CHECK(type IN ('env','docker-compose','package-json','config','other')),
-      allowed INTEGER DEFAULT 0,
-      snapshot_id TEXT REFERENCES graph_snapshots(id),
-      discovered_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS graph_nodes (
-      id TEXT PRIMARY KEY,
-      snapshot_id TEXT REFERENCES graph_snapshots(id),
-      domain TEXT NOT NULL,
-      node_key TEXT NOT NULL,
-      node_data TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(snapshot_id, node_key)
-    );
-
-    CREATE TABLE IF NOT EXISTS rules (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL,
-      severity TEXT CHECK(severity IN ('critical','high','medium','low')),
-      enabled INTEGER DEFAULT 1,
-      condition_source TEXT NOT NULL,
-      recommended_action TEXT NOT NULL,
-      built_in INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS findings (
-      id TEXT PRIMARY KEY,
-      rule_id TEXT REFERENCES rules(id),
-      snapshot_id TEXT REFERENCES graph_snapshots(id),
-      severity TEXT CHECK(severity IN ('critical','high','medium','low')),
-      title TEXT NOT NULL,
-      detail TEXT NOT NULL,
-      recommended_action TEXT NOT NULL,
-      status TEXT DEFAULT 'open' CHECK(status IN ('open','acknowledged','resolved')),
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(rule_id, snapshot_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS tasks (
-      id TEXT PRIMARY KEY,
-      finding_id TEXT REFERENCES findings(id),
-      priority INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      context TEXT NOT NULL,
-      reasoning TEXT NOT NULL,
-      status TEXT DEFAULT 'pending' CHECK(status IN ('pending','claimed','done','skipped')),
-      claimed_by TEXT,
-      claimed_at TEXT,
-      lock_expires_at TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(finding_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS state_events (
-      id TEXT PRIMARY KEY,
-      event_type TEXT NOT NULL,
-      domain TEXT NOT NULL,
-      payload TEXT NOT NULL,
-      occurred_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS state_snapshots (
-      id TEXT PRIMARY KEY DEFAULT '00000000-0000-0000-0000-000000000001',
-      snapshot_data TEXT NOT NULL,
-      last_scan_at TEXT NOT NULL,
-      service_count INTEGER DEFAULT 0,
-      finding_count INTEGER DEFAULT 0,
-      critical_count INTEGER DEFAULT 0,
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS access_rules (
-      id TEXT PRIMARY KEY,
-      source TEXT CHECK(source IN ('botignore','botinclude')),
-      pattern TEXT NOT NULL,
-      domain TEXT DEFAULT 'any' CHECK(domain IN ('file','service','env','integration','any')),
-      action TEXT CHECK(action IN ('deny','allow')),
-      created_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(source, pattern, domain)
-    );
-  `);
+export function runMigrations(): void {
+  migrate(db, { migrationsFolder: path.join(__dirname, '..', '..', 'migrations') });
+  seedBuiltInRules();
 }
 
 function seedBuiltInRules(): void {
@@ -215,14 +64,7 @@ function seedBuiltInRules(): void {
   });
 
   insertMany(builtInRules);
-  console.log('Built-in rules seeded (INSERT OR IGNORE).');
 }
 
 // Main
-createTables();
 runMigrations();
-seedBuiltInRules();
-console.log('Database migration complete.');
-
-// Prevent drizzle from complaining about unused import
-void db;
