@@ -17,6 +17,7 @@ import {
 } from '../db/schema';
 import { config } from '../config';
 import { evaluateAccess } from './access-evaluator';
+import { sseBroadcaster } from './sse-broadcaster';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -358,13 +359,15 @@ export async function runScan(): Promise<ScanResult> {
     }
 
     // 8. Promote findings to tasks
+    const promotedTasks: Array<{ id: string; priority: number; severity: string | null; title: string }> = [];
     for (const finding of insertedFindings) {
       const matchedRule = enabledRules.find((r) => r.id === finding.ruleId);
+      const newTaskId = crypto.randomUUID();
       const taskInserted = sqlite.prepare(`
         INSERT OR IGNORE INTO tasks (id, finding_id, priority, title, context, reasoning, status)
         VALUES (?, ?, ?, ?, ?, ?, 'pending')
       `).run(
-        crypto.randomUUID(),
+        newTaskId,
         finding.id,
         severityToPriority(finding.severity),
         finding.title,
@@ -374,6 +377,12 @@ export async function runScan(): Promise<ScanResult> {
 
       if (taskInserted.changes > 0) {
         tasksPromoted++;
+        promotedTasks.push({
+          id: newTaskId,
+          priority: severityToPriority(finding.severity),
+          severity: finding.severity,
+          title: finding.title,
+        });
       }
     }
 
@@ -412,12 +421,21 @@ export async function runScan(): Promise<ScanResult> {
       scanAt,
     );
 
-    return { version, findingsProduced, tasksPromoted };
+    return { version, findingsProduced, tasksPromoted, promotedTasks };
   });
 
   snapshotVersion = txResult.version;
   findingsProduced = txResult.findingsProduced;
   tasksPromoted = txResult.tasksPromoted;
+
+  for (const task of txResult.promotedTasks) {
+    sseBroadcaster.broadcast('task.available', {
+      task_id: task.id,
+      priority: task.priority,
+      severity: task.severity,
+      title: task.title,
+    });
+  }
 
   return {
     snapshotVersion,

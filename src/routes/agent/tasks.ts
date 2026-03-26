@@ -5,6 +5,7 @@ import { db, sqlite } from '../../db/index';
 import { stateSnapshots } from '../../db/schema';
 import { requireAgent, requireAgentId } from '../../middleware/auth';
 import { RateLimiter } from '../../services/rate-limiter';
+import { sseBroadcaster } from '../../services/sse-broadcaster';
 
 const router = Router();
 
@@ -64,6 +65,8 @@ router.get('/next-action', requireAgent, requireAgentId, (req: Request, res: Res
           'agent',
           JSON.stringify({ task_id: staleTask.id, agent_id: staleTask.claimed_by })
         );
+
+      sseBroadcaster.broadcast('task.available', { task_id: staleTask.id });
     }
 
     // Step 2: Find highest-priority pending task
@@ -225,6 +228,8 @@ router.post('/tasks/:id/complete', requireAgent, requireAgentId, (req: Request, 
       JSON.stringify({ task_id: id, agent_id: agentId, note })
     );
 
+  sseBroadcaster.broadcast('task.removed', { task_id: id });
+
   res.status(200).json({ task_id: id, status: 'done' });
 });
 
@@ -282,6 +287,8 @@ router.post('/tasks/:id/skip', requireAgent, requireAgentId, (req: Request, res:
       'agent',
       JSON.stringify({ task_id: id, agent_id: agentId, reason })
     );
+
+  sseBroadcaster.broadcast('task.removed', { task_id: id });
 
   res.status(200).json({ task_id: id, status: 'skipped' });
 });

@@ -9,6 +9,7 @@ import rulesRouter from './routes/api/rules';
 import findingsRouter from './routes/api/findings';
 import agentRouter from './routes/agent/tasks';
 import agentActionsRouter from './routes/agent/actions';
+import streamRouter from './routes/agent/stream';
 import apiActionsRouter from './routes/api/actions';
 import stateRouter from './routes/api/state';
 import { requestLogger } from './middleware/request-logger';
@@ -47,6 +48,7 @@ app.use('/api/rules', rulesRouter);
 app.use('/api/findings', findingsRouter);
 app.use('/agent', agentRouter);
 app.use('/agent', agentActionsRouter);
+app.use('/agent', streamRouter);
 app.use('/api', apiActionsRouter);
 app.use('/api', stateRouter);
 
