@@ -12,6 +12,8 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/access', label: 'Access Control' },
   { to: '/timeline', label: 'Timeline' },
   { to: '/settings', label: 'Settings' },
+  { to: '/federation', label: 'Federation' },
+  { to: '/rule-registry', label: 'Rule Registry' },
 ];
 
 interface LayoutProps {

@@ -20,6 +20,44 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface AgentAction {
+  id: string;
+  task_id: string;
+  agent_id: string;
+  action_type: string;
+  target: string;
+  outcome: string;
+  payload?: unknown;
+  notes?: string | null;
+  occurred_at: string | null;
+}
+
+export interface Satellite {
+  id: string;
+  name: string;
+  url: string;
+  status: string | null;
+  last_sync_at: string | null;
+  created_at: string | null;
+}
+
+export interface SyncResult {
+  satellite_id: string;
+  synced_at: string;
+  findings_imported: number;
+}
+
+export interface RuleBundle {
+  id: string;
+  name: string;
+  description: string;
+  severity: string | null;
+  enabled: boolean;
+  condition_source: string;
+  recommended_action: string;
+  built_in: boolean;
+}
+
 export interface ScanResult {
   snapshot_version: number;
   services_discovered: number;
@@ -227,6 +265,90 @@ export const api = {
 
   getState(): Promise<StateResponse> {
     return request<StateResponse>('/api/state');
+  },
+
+  postAgentAction(
+    taskId: string,
+    actionType: string,
+    target: string,
+    outcome: string,
+    payload?: object,
+    notes?: string
+  ): Promise<AgentAction> {
+    return request<AgentAction>(`/agent/tasks/${encodeURIComponent(taskId)}/actions`, {
+      method: 'POST',
+      body: JSON.stringify({ action_type: actionType, target, outcome, payload, notes }),
+    });
+  },
+
+  getTaskActions(taskId: string): Promise<{ actions: AgentAction[] }> {
+    return request<{ actions: AgentAction[] }>(`/agent/tasks/${encodeURIComponent(taskId)}/actions`);
+  },
+
+  getActions(params?: {
+    agent_id?: string;
+    task_id?: string;
+    action_type?: string;
+    since?: string;
+    until?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ actions: AgentAction[]; total: number; limit: number; offset: number }> {
+    const qs = new URLSearchParams();
+    if (params?.agent_id) qs.set('agent_id', params.agent_id);
+    if (params?.task_id) qs.set('task_id', params.task_id);
+    if (params?.action_type) qs.set('action_type', params.action_type);
+    if (params?.since) qs.set('since', params.since);
+    if (params?.until) qs.set('until', params.until);
+    if (params?.limit !== undefined) qs.set('limit', String(params.limit));
+    if (params?.offset !== undefined) qs.set('offset', String(params.offset));
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return request<{ actions: AgentAction[]; total: number; limit: number; offset: number }>(`/agent/actions${query}`);
+  },
+
+  getStreamStatus(): Promise<{ connected_agents: string[]; connection_count: number }> {
+    return request<{ connected_agents: string[]; connection_count: number }>('/agent/stream/status');
+  },
+
+  getFederationSatellites(): Promise<{ satellites: Satellite[] }> {
+    return request<{ satellites: Satellite[] }>('/api/federation/satellites');
+  },
+
+  createFederationSatellite(data: { name: string; url: string; agent_key: string }): Promise<Satellite> {
+    return request<Satellite>('/api/federation/satellites', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteFederationSatellite(id: string): Promise<void> {
+    return request<void>(`/api/federation/satellites/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+
+  syncFederationSatellite(id: string): Promise<SyncResult> {
+    return request<SyncResult>(`/api/federation/satellites/${encodeURIComponent(id)}/sync`, { method: 'POST' });
+  },
+
+  exportRules(): Promise<{ rules: RuleBundle[] }> {
+    return request<{ rules: RuleBundle[] }>('/api/rules/registry/export', { method: 'POST' });
+  },
+
+  importRules(rules: RuleBundle[]): Promise<{ imported: number; skipped: number; errors: Array<{ id: string; reason: string }> }> {
+    return request<{ imported: number; skipped: number; errors: Array<{ id: string; reason: string }> }>('/api/rules/registry/import', {
+      method: 'POST',
+      body: JSON.stringify({ rules }),
+    });
+  },
+
+  validateRule(rule: RuleBundle): Promise<{ valid: boolean; errors: string[] }> {
+    return request<{ valid: boolean; errors: string[] }>('/api/rules/registry/validate', {
+      method: 'POST',
+      body: JSON.stringify({ rule }),
+    });
+  },
+
+  getRuleRegistryStats(): Promise<{ total_rules: number; built_in: number; plugin: number; enabled: number; disabled: number }> {
+    return request<{ total_rules: number; built_in: number; plugin: number; enabled: number; disabled: number }>('/api/rules/registry/stats');
   },
 
   getTimeline(params?: {

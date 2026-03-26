@@ -6,6 +6,8 @@ import { RemediationPage } from './pages/RemediationPage';
 import { AccessPage } from './pages/AccessPage';
 import { TimelinePage } from './pages/TimelinePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { FederationPage } from './pages/FederationPage';
+import { RuleRegistryPage } from './pages/RuleRegistryPage';
 
 function LoginGate() {
   const { setApiKey } = useAuth();
@@ -55,6 +57,8 @@ function ProtectedRoutes() {
       <Route path="/access" element={<AccessPage />} />
       <Route path="/timeline" element={<TimelinePage />} />
       <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/federation" element={<FederationPage />} />
+      <Route path="/rule-registry" element={<RuleRegistryPage />} />
     </Routes>
   );
 }

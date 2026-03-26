@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Layout } from '../components/Layout';
 import { StatusBadge } from '../components/StatusBadge';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -11,6 +11,62 @@ interface PageData {
   services: ServicesResponse;
   findings: FindingsResponse;
   state: StateResponse;
+}
+
+function LiveFeedPanel() {
+  const [agents, setAgents] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await api.getStreamStatus();
+      setAgents(res.connected_agents);
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStatus();
+    intervalRef.current = setInterval(fetchStatus, 10000);
+    return () => {
+      if (intervalRef.current !== null) clearInterval(intervalRef.current);
+    };
+  }, [fetchStatus]);
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-lg p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Live Feed</h2>
+        <div className="flex items-center gap-1.5">
+          <span className={`w-2 h-2 rounded-full ${error ? 'bg-red-500' : 'bg-green-500'}`} />
+          <span className="text-xs text-gray-500">{error ? 'error' : `${agents.length} connected`}</span>
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-xs text-gray-500">Loading...</p>
+      ) : error ? (
+        <p className="text-xs text-red-400">Error: {error}</p>
+      ) : agents.length === 0 ? (
+        <p className="text-xs text-gray-500">No agents connected.</p>
+      ) : (
+        <ul className="space-y-1">
+          {agents.map((agent) => (
+            <li key={agent} className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+              <span className="text-xs text-gray-300 font-mono truncate">{agent}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
@@ -124,6 +180,9 @@ export function OverviewPage() {
               <StatCard label="Critical Findings" value={state?.current.critical_count ?? 0} />
               <StatCard label="Last Scan" value={relativeTime(state?.current.last_scan_at ?? null)} />
             </div>
+
+            {/* Live Feed */}
+            <LiveFeedPanel />
 
             {/* Services grid */}
             <section>
