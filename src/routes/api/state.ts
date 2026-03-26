@@ -1,13 +1,16 @@
 import { Router } from 'express';
-import { desc, eq, gte, lte, and, sql } from 'drizzle-orm';
+import { desc, eq, gte, lte, and, isNull, sql } from 'drizzle-orm';
 import { requireAdmin } from '../../middleware/auth';
 import { db } from '../../db/index';
-import { stateSnapshots, stateEvents } from '../../db/schema';
+import { stateSnapshots, stateEvents, satellites } from '../../db/schema';
 
 const router = Router();
 
 // GET /api/state
+// ?satellite_id= absent → local only; =all → local state + satellite statuses
 router.get('/state', requireAdmin, (req, res) => {
+  const satelliteIdParam = req.query['satellite_id'] as string | undefined;
+
   const snapshot = db
     .select()
     .from(stateSnapshots)
@@ -18,9 +21,20 @@ router.get('/state', requireAdmin, (req, res) => {
     return res.status(404).json({ error: 'no_state' });
   }
 
+  // Choose event filter based on satellite_id param
+  let eventWhereClause;
+  if (satelliteIdParam === 'all') {
+    eventWhereClause = undefined; // no filter
+  } else if (satelliteIdParam !== undefined) {
+    eventWhereClause = eq(stateEvents.satelliteId, satelliteIdParam);
+  } else {
+    eventWhereClause = isNull(stateEvents.satelliteId);
+  }
+
   const recentRows = db
     .select()
     .from(stateEvents)
+    .where(eventWhereClause)
     .orderBy(desc(stateEvents.occurredAt))
     .limit(50)
     .all();
@@ -39,7 +53,7 @@ router.get('/state', requireAdmin, (req, res) => {
     occurred_at: e.occurredAt,
   }));
 
-  return res.json({
+  const response: Record<string, unknown> = {
     current: {
       service_count: snapshot.serviceCount ?? 0,
       finding_count: snapshot.findingCount ?? 0,
@@ -47,7 +61,19 @@ router.get('/state', requireAdmin, (req, res) => {
       last_scan_at: snapshot.lastScanAt,
     },
     recent_events: recentEvents,
-  });
+  };
+
+  if (satelliteIdParam === 'all') {
+    const satelliteRows = db.select().from(satellites).all();
+    response['satellites'] = satelliteRows.map((s) => ({
+      id: s.id,
+      name: s.name,
+      status: s.status,
+      last_sync_at: s.lastSyncAt,
+    }));
+  }
+
+  return res.json(response);
 });
 
 // GET /api/timeline

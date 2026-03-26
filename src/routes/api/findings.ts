@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, max, and } from 'drizzle-orm';
+import { eq, max, and, isNull } from 'drizzle-orm';
 import { requireAdmin } from '../../middleware/auth';
 import { db } from '../../db/index';
 import { graphSnapshots, findings } from '../../db/schema';
@@ -13,6 +13,7 @@ const VALID_STATUSES = new Set(['open', 'acknowledged', 'resolved']);
 router.get('/', requireAdmin, (req, res) => {
   const severityFilter = req.query['severity'] as string | undefined;
   const statusFilter = req.query['status'] as string | undefined;
+  const satelliteIdParam = req.query['satellite_id'] as string | undefined;
 
   // Validate filters
   if (severityFilter !== undefined && !VALID_SEVERITIES.has(severityFilter)) {
@@ -29,10 +30,77 @@ router.get('/', requireAdmin, (req, res) => {
     });
   }
 
-  // Get latest snapshot
+  // When satellite_id=all, return all findings regardless of source
+  if (satelliteIdParam === 'all') {
+    type FindingCondition = Parameters<typeof and>[0];
+    const conditions: FindingCondition[] = [];
+
+    if (severityFilter) {
+      conditions.push(eq(findings.severity, severityFilter as 'critical' | 'high' | 'medium' | 'low'));
+    }
+    if (statusFilter) {
+      conditions.push(eq(findings.status, statusFilter as 'open' | 'acknowledged' | 'resolved'));
+    }
+
+    const rows = db
+      .select()
+      .from(findings)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .all();
+
+    const result = rows.map((f) => ({
+      id: f.id,
+      rule_id: f.ruleId,
+      severity: f.severity,
+      title: f.title,
+      detail: f.detail,
+      recommended_action: f.recommendedAction,
+      status: f.status,
+      satellite_id: f.satelliteId ?? null,
+      created_at: f.createdAt,
+    }));
+
+    return res.json({ snapshot_version: null, findings: result });
+  }
+
+  // When satellite_id=<uuid>, return findings for that satellite
+  if (satelliteIdParam !== undefined) {
+    type FindingCondition = Parameters<typeof and>[0];
+    const conditions: FindingCondition[] = [eq(findings.satelliteId, satelliteIdParam)];
+
+    if (severityFilter) {
+      conditions.push(eq(findings.severity, severityFilter as 'critical' | 'high' | 'medium' | 'low'));
+    }
+    if (statusFilter) {
+      conditions.push(eq(findings.status, statusFilter as 'open' | 'acknowledged' | 'resolved'));
+    }
+
+    const rows = db
+      .select()
+      .from(findings)
+      .where(and(...conditions))
+      .all();
+
+    const result = rows.map((f) => ({
+      id: f.id,
+      rule_id: f.ruleId,
+      severity: f.severity,
+      title: f.title,
+      detail: f.detail,
+      recommended_action: f.recommendedAction,
+      status: f.status,
+      satellite_id: f.satelliteId ?? null,
+      created_at: f.createdAt,
+    }));
+
+    return res.json({ snapshot_version: null, findings: result });
+  }
+
+  // Default: local data only (satellite_id IS NULL) — get latest local snapshot
   const latestRow = db
     .select({ maxVersion: max(graphSnapshots.version) })
     .from(graphSnapshots)
+    .where(isNull(graphSnapshots.satelliteId))
     .get();
 
   const latestVersion = latestRow?.maxVersion ?? null;
@@ -44,7 +112,7 @@ router.get('/', requireAdmin, (req, res) => {
   const snapshot = db
     .select()
     .from(graphSnapshots)
-    .where(eq(graphSnapshots.version, latestVersion))
+    .where(and(eq(graphSnapshots.version, latestVersion), isNull(graphSnapshots.satelliteId)))
     .get();
 
   if (!snapshot) {

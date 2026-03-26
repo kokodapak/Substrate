@@ -1,6 +1,17 @@
 import { sqliteTable, text, integer, unique } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
+// ─── satellites ───────────────────────────────────────────────────────────────
+export const satellites = sqliteTable('satellites', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  url: text('url').notNull(),
+  agentKeyEncrypted: text('agent_key_encrypted').notNull(),
+  lastSyncAt: text('last_sync_at'),
+  status: text('status', { enum: ['online', 'offline', 'error'] }).default('offline'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`),
+});
+
 // ─── graph_snapshots ───────────────────────────────────────────────────────────
 export const graphSnapshots = sqliteTable('graph_snapshots', {
   id: text('id').primaryKey(),
@@ -8,6 +19,7 @@ export const graphSnapshots = sqliteTable('graph_snapshots', {
   graphData: text('graph_data').notNull(),
   domains: text('domains').default('["services","files_configs"]'),
   createdAt: text('created_at').default(sql`(datetime('now'))`),
+  satelliteId: text('satellite_id'),
 });
 
 // ─── services ─────────────────────────────────────────────────────────────────
@@ -77,6 +89,7 @@ export const findings = sqliteTable(
     status: text('status', { enum: ['open', 'acknowledged', 'resolved'] }).default('open'),
     createdAt: text('created_at').default(sql`(datetime('now'))`),
     updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+    satelliteId: text('satellite_id'),
   },
   (t) => ({
     uniqRuleSnapshot: unique().on(t.ruleId, t.snapshotId),
@@ -101,6 +114,7 @@ export const tasks = sqliteTable(
     lockExpiresAt: text('lock_expires_at'),
     createdAt: text('created_at').default(sql`(datetime('now'))`),
     updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+    satelliteId: text('satellite_id'),
   },
   (t) => ({
     uniqFinding: unique().on(t.findingId),
@@ -115,6 +129,7 @@ export const stateEvents = sqliteTable('state_events', {
   domain: text('domain').notNull(),
   payload: text('payload').notNull(),
   occurredAt: text('occurred_at').default(sql`(datetime('now'))`),
+  satelliteId: text('satellite_id'),
 });
 
 // ─── state_snapshots ──────────────────────────────────────────────────────────

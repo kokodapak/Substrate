@@ -146,6 +146,29 @@ function bootstrap(): void {
       0
     )
   `).run();
+
+  // Add federation columns to tables if not already present.
+  // better-sqlite3 does not support ALTER TABLE ADD COLUMN IF NOT EXISTS,
+  // so we try each ALTER individually and ignore duplicate-column errors.
+  for (const alter of [
+    'ALTER TABLE graph_snapshots ADD COLUMN satellite_id TEXT',
+    'ALTER TABLE findings ADD COLUMN satellite_id TEXT',
+    'ALTER TABLE tasks ADD COLUMN satellite_id TEXT',
+    'ALTER TABLE state_events ADD COLUMN satellite_id TEXT',
+  ]) {
+    try { sqlite.exec(alter); } catch { /* column already exists — ignore */ }
+  }
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS satellites (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      url TEXT NOT NULL,
+      agent_key_encrypted TEXT NOT NULL,
+      last_sync_at TEXT,
+      status TEXT DEFAULT 'offline',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
 }
 
 /** Insert a bare task directly into the DB and return its id. */

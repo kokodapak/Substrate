@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, max } from 'drizzle-orm';
+import { eq, max, and, isNull } from 'drizzle-orm';
 import { requireAdmin } from '../../middleware/auth';
 import { db } from '../../db/index';
 import { graphSnapshots, graphNodes, graphEdges } from '../../db/schema';
@@ -7,10 +7,23 @@ import { graphSnapshots, graphNodes, graphEdges } from '../../db/schema';
 const router = Router();
 
 // GET /api/graph — returns the latest graph snapshot
-router.get('/', requireAdmin, (_req, res) => {
+// ?satellite_id= absent → local only; =<uuid> → that satellite; =all → all sources
+router.get('/', requireAdmin, (req, res) => {
+  const satelliteIdParam = req.query['satellite_id'] as string | undefined;
+
+  let snapshotWhereClause;
+  if (satelliteIdParam === 'all') {
+    snapshotWhereClause = undefined; // no filter — all sources
+  } else if (satelliteIdParam !== undefined) {
+    snapshotWhereClause = eq(graphSnapshots.satelliteId, satelliteIdParam);
+  } else {
+    snapshotWhereClause = isNull(graphSnapshots.satelliteId);
+  }
+
   const latestRow = db
     .select({ maxVersion: max(graphSnapshots.version) })
     .from(graphSnapshots)
+    .where(snapshotWhereClause)
     .get();
 
   const latestVersion = latestRow?.maxVersion ?? null;
@@ -22,7 +35,11 @@ router.get('/', requireAdmin, (_req, res) => {
   const snapshot = db
     .select()
     .from(graphSnapshots)
-    .where(eq(graphSnapshots.version, latestVersion))
+    .where(
+      snapshotWhereClause !== undefined
+        ? and(eq(graphSnapshots.version, latestVersion), snapshotWhereClause)
+        : eq(graphSnapshots.version, latestVersion)
+    )
     .get();
 
   if (!snapshot) {

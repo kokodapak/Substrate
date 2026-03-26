@@ -12,6 +12,7 @@ import agentActionsRouter from './routes/agent/actions';
 import streamRouter from './routes/agent/stream';
 import apiActionsRouter from './routes/api/actions';
 import stateRouter from './routes/api/state';
+import federationRouter from './routes/api/federation';
 import { requestLogger } from './middleware/request-logger';
 import { sqlite } from './db/index';
 import { config } from './config';
@@ -51,6 +52,7 @@ app.use('/agent', agentActionsRouter);
 app.use('/agent', streamRouter);
 app.use('/api', apiActionsRouter);
 app.use('/api', stateRouter);
+app.use('/api', federationRouter);
 
 // Serve built React SPA for all non-API routes
 app.use(express.static(path.join(__dirname, '../dist/public')));
