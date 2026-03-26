@@ -12,7 +12,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
   res.on('finish', () => {
     const duration = Date.now() - start;
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${req.method} ${req.path} ${res.statusCode} ${duration}ms`);
+    process.stdout.write(`[${timestamp}] ${req.method} ${req.path} ${res.statusCode} ${duration}ms\n`);
   });
 
   next();
