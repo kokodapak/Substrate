@@ -128,6 +128,21 @@ export const stateSnapshots = sqliteTable('state_snapshots', {
   updatedAt: text('updated_at').default(sql`(datetime('now'))`),
 });
 
+// ─── agent_actions ────────────────────────────────────────────────────────────
+export const agentActions = sqliteTable('agent_actions', {
+  id: text('id').primaryKey(),
+  taskId: text('task_id').references(() => tasks.id),
+  agentId: text('agent_id').notNull(),
+  actionType: text('action_type', {
+    enum: ['restart_container', 'write_file', 'exec_command', 'http_request', 'custom'],
+  }).notNull(),
+  target: text('target').notNull(),
+  payload: text('payload'),
+  outcome: text('outcome', { enum: ['success', 'failure', 'partial'] }).notNull(),
+  notes: text('notes'),
+  occurredAt: text('occurred_at').default(sql`(datetime('now'))`),
+});
+
 // ─── access_rules ─────────────────────────────────────────────────────────────
 export const accessRules = sqliteTable(
   'access_rules',

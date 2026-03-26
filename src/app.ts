@@ -8,6 +8,8 @@ import graphRouter from './routes/api/graph';
 import rulesRouter from './routes/api/rules';
 import findingsRouter from './routes/api/findings';
 import agentRouter from './routes/agent/tasks';
+import agentActionsRouter from './routes/agent/actions';
+import apiActionsRouter from './routes/api/actions';
 import stateRouter from './routes/api/state';
 import { requestLogger } from './middleware/request-logger';
 import { sqlite } from './db/index';
@@ -44,6 +46,8 @@ app.use('/api/graph', graphRouter);
 app.use('/api/rules', rulesRouter);
 app.use('/api/findings', findingsRouter);
 app.use('/agent', agentRouter);
+app.use('/agent', agentActionsRouter);
+app.use('/api', apiActionsRouter);
 app.use('/api', stateRouter);
 
 // Serve built React SPA for all non-API routes
