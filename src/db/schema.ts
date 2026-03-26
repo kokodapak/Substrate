@@ -143,6 +143,19 @@ export const agentActions = sqliteTable('agent_actions', {
   occurredAt: text('occurred_at').default(sql`(datetime('now'))`),
 });
 
+// ─── graph_edges ──────────────────────────────────────────────────────────────
+export const graphEdges = sqliteTable('graph_edges', {
+  id: text('id').primaryKey(),
+  snapshotId: text('snapshot_id').references(() => graphSnapshots.id),
+  fromNodeKey: text('from_node_key').notNull(),
+  toNodeKey: text('to_node_key').notNull(),
+  edgeType: text('edge_type', {
+    enum: ['depends_on', 'exposes_port', 'mounts_volume', 'reads_env_file'],
+  }).notNull(),
+  metadata: text('metadata'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`),
+});
+
 // ─── access_rules ─────────────────────────────────────────────────────────────
 export const accessRules = sqliteTable(
   'access_rules',

@@ -8,6 +8,7 @@ import { db, sqlite } from '../db/index';
 import {
   graphSnapshots,
   graphNodes,
+  graphEdges,
   services,
   filesConfigs,
   rules,
@@ -29,6 +30,7 @@ interface DiscoveredService {
   image: string;
   ports: Array<{ host_port: number; container_port: number; protocol: string }>;
   envKeyNames: string[];
+  mounts: Array<{ source: string; destination: string; mode: string }>;
 }
 
 interface DiscoveredFile {
@@ -92,16 +94,25 @@ async function discoverDockerContainers(): Promise<DiscoveredService[]> {
         }
       }
 
-      // Inspect for env key names (we only store key names, never values)
+      // Inspect for env key names (we only store key names, never values) and mounts
       let envKeyNames: string[] = [];
+      let mounts: Array<{ source: string; destination: string; mode: string }> = [];
       try {
         const inspected = await docker.getContainer(container.Id).inspect();
         const envVars = inspected.Config?.Env ?? [];
         envKeyNames = envVars
           .map((e: string) => e.split('=')[0] ?? '')
           .filter((k: string) => k.length > 0);
+        const rawMounts: Array<{ Source?: string; Destination?: string; Mode?: string }> = inspected.Mounts ?? [];
+        mounts = rawMounts
+          .filter((m) => m.Source !== undefined && m.Destination !== undefined)
+          .map((m) => ({
+            source: m.Source!,
+            destination: m.Destination!,
+            mode: m.Mode ?? '',
+          }));
       } catch {
-        // Inspect may fail for some containers — skip env keys
+        // Inspect may fail for some containers — skip env keys and mounts
       }
 
       discovered.push({
@@ -112,6 +123,7 @@ async function discoverDockerContainers(): Promise<DiscoveredService[]> {
         image,
         ports,
         envKeyNames,
+        mounts,
       });
     }
 
@@ -240,8 +252,52 @@ export async function runScan(): Promise<ScanResult> {
     const version = (maxVersion ?? 0) + 1;
     snapshotVersion = version;
 
-    // 5. Insert graph_snapshot
+    // 5. Build edge list (before inserting, so they can be included in graphData)
     const snapshotId = crypto.randomUUID();
+
+    const discoveredEdges: Array<{
+      id: string;
+      from_node_key: string;
+      to_node_key: string;
+      edge_type: 'exposes_port' | 'mounts_volume' | 'reads_env_file';
+      metadata: string | null;
+    }> = [];
+
+    for (const svc of allowedServices) {
+      const serviceKey = `service:${svc.name}`;
+
+      // exposes_port edges
+      for (const p of svc.ports) {
+        discoveredEdges.push({
+          id: crypto.randomUUID(),
+          from_node_key: serviceKey,
+          to_node_key: `port:${p.host_port}`,
+          edge_type: 'exposes_port',
+          metadata: JSON.stringify({
+            host_port: p.host_port,
+            container_port: p.container_port,
+            protocol: p.protocol,
+          }),
+        });
+      }
+
+      // mounts_volume edges
+      for (const m of svc.mounts) {
+        discoveredEdges.push({
+          id: crypto.randomUUID(),
+          from_node_key: serviceKey,
+          to_node_key: `volume:${m.source}`,
+          edge_type: 'mounts_volume',
+          metadata: JSON.stringify({
+            source: m.source,
+            destination: m.destination,
+            mode: m.mode,
+          }),
+        });
+      }
+    }
+
+    // Insert graph_snapshot first (FK parent for services, files, edges, nodes)
     db.insert(graphSnapshots).values({
       id: snapshotId,
       version,
@@ -254,6 +310,7 @@ export async function runScan(): Promise<ScanResult> {
         files_configs: allowedFiles.map((f) => ({
           ...f,
         })),
+        edges: discoveredEdges,
       }),
       domains: '["services","files_configs"]',
     }).run();
@@ -280,6 +337,18 @@ export async function runScan(): Promise<ScanResult> {
         type: f.type,
         allowed: f.allowed,
         snapshotId,
+      }).run();
+    }
+
+    // Insert edges into graph_edges table
+    for (const edge of discoveredEdges) {
+      db.insert(graphEdges).values({
+        id: edge.id,
+        snapshotId,
+        fromNodeKey: edge.from_node_key,
+        toNodeKey: edge.to_node_key,
+        edgeType: edge.edge_type,
+        metadata: edge.metadata,
       }).run();
     }
 

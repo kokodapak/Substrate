@@ -15,6 +15,13 @@
       "when": 1774558936062,
       "tag": "0001_modern_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1774559418906,
+      "tag": "0002_little_pandemic",
+      "breakpoints": true
     }
   ]
 }

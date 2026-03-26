@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { eq, max } from 'drizzle-orm';
 import { requireAdmin } from '../../middleware/auth';
 import { db } from '../../db/index';
-import { graphSnapshots, graphNodes } from '../../db/schema';
+import { graphSnapshots, graphNodes, graphEdges } from '../../db/schema';
 
 const router = Router();
 
@@ -29,11 +29,30 @@ router.get('/', requireAdmin, (_req, res) => {
     return res.status(404).json({ error: 'no_snapshot' });
   }
 
+  const edgeRows = db
+    .select()
+    .from(graphEdges)
+    .where(eq(graphEdges.snapshotId, snapshot.id))
+    .all();
+
+  const edges = edgeRows.map((e) => ({
+    id: e.id,
+    snapshot_id: e.snapshotId,
+    from_node_key: e.fromNodeKey,
+    to_node_key: e.toNodeKey,
+    edge_type: e.edgeType,
+    metadata: e.metadata ?? null,
+    created_at: e.createdAt,
+  }));
+
+  const graphData = JSON.parse(snapshot.graphData) as Record<string, unknown>;
+  graphData['edges'] = edges;
+
   return res.json({
     version: snapshot.version,
     created_at: snapshot.createdAt,
     domains: JSON.parse(snapshot.domains ?? '["services","files_configs"]') as string[],
-    graph_data: JSON.parse(snapshot.graphData) as object,
+    graph_data: graphData,
   });
 });
 
@@ -185,7 +204,43 @@ router.get('/diff', requireAdmin, (req, res) => {
     domains[domain] = { added, removed, modified };
   }
 
-  return res.json({ from: fromNum, to: toNum, domains });
+  // Load edges for both snapshots
+  const fromEdges = db
+    .select()
+    .from(graphEdges)
+    .where(eq(graphEdges.snapshotId, fromSnapshot.id))
+    .all();
+
+  const toEdges = db
+    .select()
+    .from(graphEdges)
+    .where(eq(graphEdges.snapshotId, toSnapshot.id))
+    .all();
+
+  // Stable edge key: (fromNodeKey, toNodeKey, edgeType)
+  function edgeKey(e: { fromNodeKey: string | null; toNodeKey: string | null; edgeType: string | null }): string {
+    return `${e.fromNodeKey ?? ''}|${e.toNodeKey ?? ''}|${e.edgeType ?? ''}`;
+  }
+
+  const fromEdgeMap = new Map(fromEdges.map((e) => [edgeKey(e), e]));
+  const toEdgeMap = new Map(toEdges.map((e) => [edgeKey(e), e]));
+
+  function toSnakeCase(e: typeof fromEdges[number]) {
+    return {
+      id: e.id,
+      snapshot_id: e.snapshotId,
+      from_node_key: e.fromNodeKey,
+      to_node_key: e.toNodeKey,
+      edge_type: e.edgeType,
+      metadata: e.metadata ?? null,
+      created_at: e.createdAt,
+    };
+  }
+
+  const edge_additions = toEdges.filter((e) => !fromEdgeMap.has(edgeKey(e))).map(toSnakeCase);
+  const edge_removals = fromEdges.filter((e) => !toEdgeMap.has(edgeKey(e))).map(toSnakeCase);
+
+  return res.json({ from: fromNum, to: toNum, domains, edge_additions, edge_removals });
 });
 
 export default router;

@@ -87,6 +87,14 @@ function seedBuiltInRules(): void {
       conditionSource: `return (!graphData.services || graphData.services.length === 0) && (!graphData.files_configs || graphData.files_configs.length === 0);`,
       recommendedAction: 'Verify the Docker socket is accessible and the scan completed successfully. Check agent connectivity.',
     },
+    {
+      id: 'docker-socket-exposed-via-volume',
+      name: 'Docker Socket Exposed via Volume Mount',
+      description: 'Detects containers that mount the Docker socket file via a volume, granting them full Docker daemon access.',
+      severity: 'high' as const,
+      conditionSource: `return graphData.edges && graphData.edges.some(e => e.edge_type === 'mounts_volume' && e.to_node_key && e.to_node_key.includes('/var/run/docker.sock'));`,
+      recommendedAction: 'Remove the Docker socket volume mount. If Docker-in-Docker is required, use a dedicated Docker daemon with access controls.',
+    },
   ];
 
   const insert = sqlite.prepare(`

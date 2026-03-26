@@ -132,6 +132,16 @@ function bootstrap(): void {
       created_at TEXT DEFAULT (datetime('now')),
       UNIQUE(source, pattern, domain)
     );
+
+    CREATE TABLE IF NOT EXISTS graph_edges (
+      id TEXT PRIMARY KEY,
+      snapshot_id TEXT REFERENCES graph_snapshots(id),
+      from_node_key TEXT NOT NULL,
+      to_node_key TEXT NOT NULL,
+      edge_type TEXT NOT NULL,
+      metadata TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 
   // Seed a minimal rule for testing
