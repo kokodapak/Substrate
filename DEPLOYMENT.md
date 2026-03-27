@@ -69,7 +69,7 @@ Expected response:
 ```json
 {
   "status": "ok",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "uptime_s": 3,
   "db": "ok"
 }
@@ -79,7 +79,14 @@ Expected response:
 
 ## Update (Blue-Green)
 
-Substrate can be updated with zero downtime by building a new image and swapping the container:
+Substrate can be updated with zero downtime by building a new image and swapping the container.
+
+**Always back up your database before updating.** Migrations run automatically on startup and cannot be reversed:
+
+```bash
+# Back up before updating
+docker exec substrate sqlite3 /app/data/substrate.db ".backup /app/data/substrate.db.pre-update"
+```
 
 ```bash
 # 1. Pull latest code
